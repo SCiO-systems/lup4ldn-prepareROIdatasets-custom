@@ -1,10 +1,12 @@
 import numpy as np
+import numpy.ma as ma
 import gdal
 import os
 import boto3
 from botocore.exceptions import ClientError
 import json
 import logging
+
 # import sys
 
 s3 = boto3.client('s3')
@@ -211,6 +213,8 @@ def lambda_handler(event, context):
         path_to_land_degradation = create_vsis3_url(json_file["land_use_map"]["custom_map_url"])
         
         custom_land_suitability = True
+    else:
+        custom_land_suitability = False
         
     save_land_use_file = path_to_tmp + "cropped_land_use.tif"
     
@@ -223,9 +227,22 @@ def lambda_handler(event, context):
     #must use gdal.Open in order to fill the file created from gdal.Warp, else the file remaines full of nodata
     try:
         t = gdal.Open(save_land_use_file)
+        
     except Exception as e:
         print(e)
         print("if ''NoneType' object has no attribute', probably the file path is wrong")
+    
+    if custom_land_suitability:
+        land_use_array = t.ReadAsArray()
+        land_use_array = np.where(land_use_array<=0, -32768,land_use_array)
+        unique, counts = np.unique(land_use_array, return_counts = True)
+        if -32768 in unique:
+            unique = unique[1:]
+            counts = counts[1:]
+    else:
+        unique, counts = np.unique(land_cover_array, return_counts = True)
+    
+    lc_hectares = dict(zip([str(x) for x in unique], 9 * [int(x) for x in counts]))
     
     
     ## land suitability
@@ -303,6 +320,7 @@ def lambda_handler(event, context):
         "land_use" : s3_lambda_path + project_id + "/cropped_land_use.tif",
         "land_degradation" : s3_lambda_path + project_id + "/cropped_land_degradation.tif",
         "suitability" : s3_lambda_path + project_id + "/cropped_suitability.tif",
+        "land_cover_hectares_per_class" : lc_hectares
     }
 
     return {
@@ -310,7 +328,7 @@ def lambda_handler(event, context):
         "body": json.dumps(my_output)
     }
 
-    
+#%%
 
 # json_file = {
 #     "body": "{\"project_id\":\"some_projectID_custom\",\"land_degradation_map\":{\"custom_map_url\":\"https:\/\/lup4ldn-default-global-datasets.s3.eu-central-1.amazonaws.com\/lup4ldn_custom_inputs\/custom_land_degradation_map.tif\"},\"land_use_map\":{\"custom_map_url\":\"https:\/\/lup4ldn-default-global-datasets.s3.eu-central-1.amazonaws.com\/lup4ldn_custom_inputs\/custom_land_use_map.tif\"},\"land_suitability_map\":[{\"lu_class\":21,\"lu_suitability_map_url\":\"https:\/\/lup4ldn-default-global-datasets.s3.eu-central-1.amazonaws.com\/lup4ldn_custom_inputs\/custom_land_suitability_map_1.tif\"},{\"lu_class\":34,\"lu_suitability_map_url\":\"https:\/\/lup4ldn-default-global-datasets.s3.eu-central-1.amazonaws.com\/lup4ldn_custom_inputs\/custom_land_suitability_map_2.tif\"}],\"ROI\":{\"type\":\"FeatureCollection\",\"features\":[{\"type\":\"Feature\",\"properties\":{},\"geometry\":{\"type\":\"Polygon\",\"coordinates\":[[[8.72314453125,33.04550781490999],[10.052490234375,33.04550781490999],[10.052490234375,37.17782559332976],[8.72314453125,37.17782559332976],[8.72314453125,33.04550781490999]]]}}]}}"
@@ -319,5 +337,8 @@ def lambda_handler(event, context):
 # t = lambda_handler(json_file, 1)
 
 
+# {
+#      "body": "{\"project_id\":\"some_projectID_custom\",\"land_degradation_map\":{\"custom_map_url\":\"https:\/\/lup4ldn-default-global-datasets.s3.eu-central-1.amazonaws.com\/lup4ldn_custom_inputs\/custom_land_degradation_map.tif\"},\"land_use_map\":{\"custom_map_url\":\"https:\/\/lup4ldn-default-global-datasets.s3.eu-central-1.amazonaws.com\/lup4ldn_custom_inputs\/custom_land_use_map.tif\"},\"land_suitability_map\":[{\"lu_class\":21,\"lu_suitability_map_url\":\"https:\/\/lup4ldn-default-global-datasets.s3.eu-central-1.amazonaws.com\/lup4ldn_custom_inputs\/custom_land_suitability_map_1.tif\"},{\"lu_class\":34,\"lu_suitability_map_url\":\"https:\/\/lup4ldn-default-global-datasets.s3.eu-central-1.amazonaws.com\/lup4ldn_custom_inputs\/custom_land_suitability_map_2.tif\"}],\"ROI\":{\"type\":\"FeatureCollection\",\"features\":[{\"type\":\"Feature\",\"properties\":{},\"geometry\":{\"type\":\"Polygon\",\"coordinates\":[[[8.72314453125,33.04550781490999],[10.052490234375,33.04550781490999],[10.052490234375,37.17782559332976],[8.72314453125,37.17782559332976],[8.72314453125,33.04550781490999]]]}}]}}"
+# }
 
 
