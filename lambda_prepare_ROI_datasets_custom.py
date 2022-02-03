@@ -199,9 +199,10 @@ def lambda_handler(event, context):
         print("if 'returned NULL without setting an error', probably at least one of the file paths is wrong")
             
     try:
-        t = gdal.Open(save_land_degradation_file)
-        x_ref = t.RasterXSize
-        y_ref = t.RasterYSize
+        land_degradation_tif = gdal.Open(save_land_degradation_file)
+        land_degradation_array = land_degradation_tif.ReadAsArray()
+        x_ref = land_degradation_tif.RasterXSize
+        y_ref = land_degradation_tif.RasterYSize
     except Exception as e:
         print(e)
         print("if ''NoneType' object has no attribute', probably the file path is wrong")
@@ -248,7 +249,7 @@ def lambda_handler(event, context):
     ## land suitability
     if custom_land_suitability:
         save_suitability_file = path_to_tmp + "cropped_suitability.tif"
-        temp = np.zeros((y_ref,x_ref),dtype=np.int16())    
+        land_suitability_array = np.zeros((y_ref,x_ref),dtype=np.int16())    
         try:
             lu_map = gdal.Open(save_land_use_file).ReadAsArray()
         except Exception as e:
@@ -274,10 +275,10 @@ def lambda_handler(event, context):
                 print(e)
                 print("if ''NoneType' object has no attribute', probably the file path is wrong")      
                 
-            temp += np.where(lu_map==lu_class,lu_class_suitability_map,0)    
+            land_suitability_array += np.where(lu_map==lu_class,lu_class_suitability_map,0)    
             
-        temp = np.where(temp==0,-32768,temp)
-        save_arrays_to_tif(save_suitability_file,temp,land_cover_tif)
+        land_suitability_array = np.where(land_suitability_array==0,-32768,land_suitability_array)
+        save_arrays_to_tif(save_suitability_file,land_suitability_array,land_cover_tif)
      
     else:        
         save_suitability_file = path_to_tmp + "cropped_suitability.tif"
@@ -290,12 +291,33 @@ def lambda_handler(event, context):
             
         #must use gdal.Open in order to fill the file created from gdal.Warp, else the file remaines full of nodata
         try:
-            t = gdal.Open(save_suitability_file)
+            land_suitability_tif = gdal.Open(save_suitability_file)
+            land_suitability_array = land_suitability_tif.ReadAsArray()
         except Exception as e:
             print(e)
             print("if ''NoneType' object has no attribute', probably the file path is wrong")
     
-        
+
+    # future land degradation map
+    
+    
+    future_ld_map = 10*land_suitability_array + land_degradation_array
+    future_ld_map = np.where(future_ld_map<9,-32768,future_ld_map )
+
+    future_ld_map = np.where(np.logical_or(future_ld_map==10,future_ld_map==11),1,future_ld_map )
+
+    future_ld_map = np.where(np.logical_or(future_ld_map==20,future_ld_map==21),2,future_ld_map )
+
+    future_ld_map = np.where(np.logical_or(future_ld_map==30,future_ld_map==31),3,future_ld_map )
+
+    future_ld_map = np.where(future_ld_map==9,4,future_ld_map )
+
+    future_ld_map = np.where(np.logical_or(future_ld_map==19,future_ld_map==29),5,future_ld_map)
+    
+    save_future_ld_map_file = path_to_tmp + "cropped_future_ld.tif"
+    
+    save_arrays_to_tif(save_future_ld_map_file,future_ld_map,land_cover_tif)
+            
         
     #upload files
     file_to_upload = os.listdir(path_to_tmp)
@@ -320,6 +342,7 @@ def lambda_handler(event, context):
         "land_use" : s3_lambda_path + project_id + "/cropped_land_use.tif",
         "land_degradation" : s3_lambda_path + project_id + "/cropped_land_degradation.tif",
         "suitability" : s3_lambda_path + project_id + "/cropped_suitability.tif",
+        "future_ld" : s3_lambda_path + project_id + "/cropped_future_ld.tif",
         "land_cover_hectares_per_class" : lc_hectares
     }
 
