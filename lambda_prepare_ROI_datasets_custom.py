@@ -301,8 +301,16 @@ def lambda_handler(event, context):
     # future land degradation map
     
     
+    #!!!!!!!!!!!WATCH OUT FOR NEGATIVE OVERFLOW IF -1 FROM LAND DEGRADATION IS ADDED TO -32768 NO DATA OF SUITABILITY!!!!!!!!!!!!
     future_ld_map = 10*land_suitability_array + land_degradation_array
-    future_ld_map = np.where(future_ld_map<9,-32768,future_ld_map )
+    
+    future_ld_map = np.where(future_ld_map<-1,-32768,future_ld_map )
+
+    future_ld_map = np.where(future_ld_map==-1,5,future_ld_map )
+    
+    future_ld_map = np.where(future_ld_map==0,2,future_ld_map )
+    
+    future_ld_map = np.where(future_ld_map==1,1,future_ld_map )
 
     future_ld_map = np.where(np.logical_or(future_ld_map==10,future_ld_map==11),1,future_ld_map )
 
