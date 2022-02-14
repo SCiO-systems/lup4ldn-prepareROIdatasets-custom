@@ -48,6 +48,21 @@ def lambda_handler(event, context):
         vsis3_url = (part1+part2).replace("https:/","/vsis3" )
         return vsis3_url
     
+    def get_bucket_from_URL(url):
+        part1 = url.split(".s3.")[0]
+        part2 = part1.split("https://")[1]
+        # vsis3_url = (part1+part2).replace("https:/","/vsis3" )
+        return part2
+    
+    def get_object_from_URL(url):
+        part2 = url.split(".amazonaws.com/")[1]
+        # vsis3_url = (part1+part2).replace("https:/","/vsis3" )
+        return part2
+    
+    def check_aws_s3_empty_file(url):
+        metadata = s3.head_object(Bucket=get_bucket_from_URL(url),Key = get_object_from_URL(url))
+        return int(metadata["ContentLength"])<=0
+
     ## land cover
     #read the first year
     save_land_cover_file = path_to_tmp + "cropped_land_cover.tif"
@@ -189,6 +204,18 @@ def lambda_handler(event, context):
     
     ##crop land degradation (SDG)
     if json_file["land_degradation_map"]["custom_map_url"]!="n/a":
+        #check if file ends with .tif extension
+        if not json_file["land_degradation_map"]["custom_map_url"].endswith(".tif"):
+            return {
+                "statusCode": 400,
+                "body": "land_degradation url doesn't end with .tif extension"
+            }
+        #check if file is empty
+        if check_aws_s3_empty_file(json_file["land_degradation_map"]["custom_map_url"]):
+            return {
+                "statusCode": 400,
+                "body": "land_degradation url points to empty file"
+            }
         path_to_land_degradation = create_vsis3_url(json_file["land_degradation_map"]["custom_map_url"])
     
     save_land_degradation_file = path_to_tmp + "cropped_land_degradation.tif"
@@ -211,6 +238,18 @@ def lambda_handler(event, context):
     
     ## land use
     if json_file["land_use_map"]["custom_map_url"]!="n/a":
+        #check if file ends with .tif extension
+        if not json_file["land_use_map"]["custom_map_url"].endswith(".tif"):
+            return {
+                "statusCode": 400,
+                "body": "land_use url doesn't end with .tif extension"
+            }
+        #check if file is empty
+        if check_aws_s3_empty_file(json_file["land_use_map"]["custom_map_url"]):
+            return {
+                "statusCode": 400,
+                "body": "land_use url points to empty file"
+            }
         path_to_land_degradation = create_vsis3_url(json_file["land_use_map"]["custom_map_url"])
         
         custom_land_suitability = True
@@ -259,6 +298,21 @@ def lambda_handler(event, context):
             
         for suit_map_data in json_file["land_suitability_map"]:
             lu_class = suit_map_data["lu_class"]
+            
+            #check if file ends with .tif extension
+            if not suit_map_data["lu_suitability_map_url"].endswith(".tif"):
+                return {
+                    "statusCode": 400,
+                    "body": "a suitability map urls doesn't end with .tif extension"
+                }
+            
+            #check if file is empty
+            if check_aws_s3_empty_file(suit_map_data["lu_suitability_map_url"]):
+                return {
+                    "statusCode": 400,
+                    "body": "a suitability map url points to empty file"
+                }
+            
             path_to_land_suitability = create_vsis3_url(suit_map_data["lu_suitability_map_url"])
             save_suitability_file = path_to_tmp + "cropped_suitability.tif"
             
@@ -359,14 +413,14 @@ def lambda_handler(event, context):
         "body": json.dumps(my_output)
     }
 
-#%%
 
+
+#%%
 # json_file = {
-#     "body": "{\"project_id\":\"some_projectID_custom\",\"land_degradation_map\":{\"custom_map_url\":\"https:\/\/lup4ldn-default-global-datasets.s3.eu-central-1.amazonaws.com\/lup4ldn_custom_inputs\/custom_land_degradation_map.tif\"},\"land_use_map\":{\"custom_map_url\":\"https:\/\/lup4ldn-default-global-datasets.s3.eu-central-1.amazonaws.com\/lup4ldn_custom_inputs\/custom_land_use_map.tif\"},\"land_suitability_map\":[{\"lu_class\":21,\"lu_suitability_map_url\":\"https:\/\/lup4ldn-default-global-datasets.s3.eu-central-1.amazonaws.com\/lup4ldn_custom_inputs\/custom_land_suitability_map_1.tif\"},{\"lu_class\":34,\"lu_suitability_map_url\":\"https:\/\/lup4ldn-default-global-datasets.s3.eu-central-1.amazonaws.com\/lup4ldn_custom_inputs\/custom_land_suitability_map_2.tif\"}],\"ROI\":{\"type\":\"FeatureCollection\",\"features\":[{\"type\":\"Feature\",\"properties\":{},\"geometry\":{\"type\":\"Polygon\",\"coordinates\":[[[8.72314453125,33.04550781490999],[10.052490234375,33.04550781490999],[10.052490234375,37.17782559332976],[8.72314453125,37.17782559332976],[8.72314453125,33.04550781490999]]]}}]}}"
+#     "body": "{\"project_id\":\"some_projectID_custom\",\"land_degradation_map\":{\"custom_map_url\":\"https:\/\/lup4ldn-default-global-datasets.s3.eu-central-1.amazonaws.com\/lup4ldn_custom_inputs\/empty.tif\"},\"land_use_map\":{\"custom_map_url\":\"https:\/\/lup4ldn-default-global-datasets.s3.eu-central-1.amazonaws.com\/lup4ldn_custom_inputs\/custom_land_use_map.tif\"},\"land_suitability_map\":[{\"lu_class\":21,\"lu_suitability_map_url\":\"https:\/\/lup4ldn-default-global-datasets.s3.eu-central-1.amazonaws.com\/lup4ldn_custom_inputs\/custom_land_suitability_map_1.tif\"},{\"lu_class\":34,\"lu_suitability_map_url\":\"https:\/\/lup4ldn-default-global-datasets.s3.eu-central-1.amazonaws.com\/lup4ldn_custom_inputs\/custom_land_suitability_map_2.tif\"}],\"ROI\":{\"type\":\"FeatureCollection\",\"features\":[{\"type\":\"Feature\",\"properties\":{},\"geometry\":{\"type\":\"Polygon\",\"coordinates\":[[[8.72314453125,33.04550781490999],[10.052490234375,33.04550781490999],[10.052490234375,37.17782559332976],[8.72314453125,37.17782559332976],[8.72314453125,33.04550781490999]]]}}]}}"
 # }
 
 # t = lambda_handler(json_file, 1)
-
 
 # {
 #      "body": "{\"project_id\":\"some_projectID_custom\",\"land_degradation_map\":{\"custom_map_url\":\"https:\/\/lup4ldn-default-global-datasets.s3.eu-central-1.amazonaws.com\/lup4ldn_custom_inputs\/custom_land_degradation_map.tif\"},\"land_use_map\":{\"custom_map_url\":\"https:\/\/lup4ldn-default-global-datasets.s3.eu-central-1.amazonaws.com\/lup4ldn_custom_inputs\/custom_land_use_map.tif\"},\"land_suitability_map\":[{\"lu_class\":21,\"lu_suitability_map_url\":\"https:\/\/lup4ldn-default-global-datasets.s3.eu-central-1.amazonaws.com\/lup4ldn_custom_inputs\/custom_land_suitability_map_1.tif\"},{\"lu_class\":34,\"lu_suitability_map_url\":\"https:\/\/lup4ldn-default-global-datasets.s3.eu-central-1.amazonaws.com\/lup4ldn_custom_inputs\/custom_land_suitability_map_2.tif\"}],\"ROI\":{\"type\":\"FeatureCollection\",\"features\":[{\"type\":\"Feature\",\"properties\":{},\"geometry\":{\"type\":\"Polygon\",\"coordinates\":[[[8.72314453125,33.04550781490999],[10.052490234375,33.04550781490999],[10.052490234375,37.17782559332976],[8.72314453125,37.17782559332976],[8.72314453125,33.04550781490999]]]}}]}}"
