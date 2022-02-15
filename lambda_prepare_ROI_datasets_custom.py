@@ -23,8 +23,11 @@ def lambda_handler(event, context):
         project_id = json_file["project_id"]
         ROI = json_file["ROI"]
     except Exception as e:
-        print(e)
         print("Input JSON field have an error.")
+        return {
+            "statusCode": 400,
+            "body": e
+        }
     
     
     #for local
@@ -82,8 +85,11 @@ def lambda_handler(event, context):
         #CHANGE HERE THE YEAR IF MORE YEARS ARE TO BE USED
         gdal.Warp(save_land_cover_file,path_to_land_cover_folder + "global_land_cover_map_2020.tif" ,**gdal_warp_kwargs_target_area)
     except Exception as e:
-        print(e)
         print("if 'returned NULL without setting an error', probably at least one of the file paths is wrong")
+        return {
+            "statusCode": 400,
+            "body": e
+        }
         
     #must use gdal.Open in order to fill the file created from gdal.Warp, else the file remaines full of nodata
     try:
@@ -92,8 +98,11 @@ def lambda_handler(event, context):
         y_ref = land_cover_tif.RasterYSize
         land_cover_array = land_cover_tif.ReadAsArray()
     except Exception as e:
-        print(e)
         print("if ''NoneType' object has no attribute', probably the file path is wrong")
+        return {
+            "statusCode": 500,
+            "body": e
+        }
     
     land_cover_array = np.expand_dims(land_cover_array,axis=0)
     
@@ -222,8 +231,11 @@ def lambda_handler(event, context):
     try:
         gdal.Warp(save_land_degradation_file,path_to_land_degradation,**gdal_warp_kwargs_target_area)
     except Exception as e:
-        print(e)
         print("if 'returned NULL without setting an error', probably at least one of the file paths is wrong")
+        return {
+            "statusCode": 400,
+            "body": e
+        }
             
     try:
         land_degradation_tif = gdal.Open(save_land_degradation_file)
@@ -231,8 +243,11 @@ def lambda_handler(event, context):
         x_ref = land_degradation_tif.RasterXSize
         y_ref = land_degradation_tif.RasterYSize
     except Exception as e:
-        print(e)
         print("if ''NoneType' object has no attribute', probably the file path is wrong")
+        return {
+            "statusCode": 500,
+            "body": e
+        }
             
     
     
@@ -261,16 +276,22 @@ def lambda_handler(event, context):
     try:
         gdal.Warp(save_land_use_file,path_to_land_use,**gdal_warp_kwargs_target_area)
     except Exception as e:
-        print(e)
         print("if 'returned NULL without setting an error', probably at least one of the file paths is wrong")
+        return {
+            "statusCode": 400,
+            "body": e
+        }
         
     #must use gdal.Open in order to fill the file created from gdal.Warp, else the file remaines full of nodata
     try:
         t = gdal.Open(save_land_use_file)
         
     except Exception as e:
-        print(e)
         print("if ''NoneType' object has no attribute', probably the file path is wrong")
+        return {
+            "statusCode": 500,
+            "body": e
+        }
     
     if custom_land_suitability:
         land_use_array = t.ReadAsArray()
@@ -292,8 +313,11 @@ def lambda_handler(event, context):
         try:
             lu_map = gdal.Open(save_land_use_file).ReadAsArray()
         except Exception as e:
-            print(e)
             print("if ''NoneType' object has no attribute', probably the file path is wrong")
+            return {
+                "statusCode": 500,
+                "body": e
+            }
             
             
         for suit_map_data in json_file["land_suitability_map"]:
@@ -319,15 +343,21 @@ def lambda_handler(event, context):
             try:
                 gdal.Warp(save_suitability_file,path_to_land_suitability,**gdal_warp_kwargs_target_area)
             except Exception as e:
-                print(e)
                 print("if 'returned NULL without setting an error', probably at least one of the file paths is wrong")
+                return {
+                    "statusCode": 400,
+                    "body": e
+                }
                 
             #must use gdal.Open in order to fill the file created from gdal.Warp, else the file remaines full of nodata
             try:
                 lu_class_suitability_map = gdal.Open(save_suitability_file).ReadAsArray()
             except Exception as e:
-                print(e)
                 print("if ''NoneType' object has no attribute', probably the file path is wrong")      
+                return {
+                    "statusCode": 500,
+                    "body": e
+                }
                 
             land_suitability_array += np.where(lu_map==lu_class,lu_class_suitability_map,0)    
             
@@ -340,16 +370,22 @@ def lambda_handler(event, context):
         try:
             gdal.Warp(save_suitability_file,path_to_land_suitability,**gdal_warp_kwargs_target_area)
         except Exception as e:
-            print(e)
             print("if 'returned NULL without setting an error', probably at least one of the file paths is wrong")
+            return {
+                "statusCode": 400,
+                "body": e
+            }
             
         #must use gdal.Open in order to fill the file created from gdal.Warp, else the file remaines full of nodata
         try:
             land_suitability_tif = gdal.Open(save_suitability_file)
             land_suitability_array = land_suitability_tif.ReadAsArray()
         except Exception as e:
-            print(e)
             print("if ''NoneType' object has no attribute', probably the file path is wrong")
+            return {
+                "statusCode": 500,
+                "body": e
+            }
     
 
     # future land degradation map
@@ -398,6 +434,10 @@ def lambda_handler(event, context):
     #         print("Uploaded file: " + file)
         except ClientError as e:
             logging.error(e)
+            return {
+                "statusCode": 500,
+                "body": e
+            }
     
     my_output = {
         "land_cover" : s3_lambda_path + project_id + "/cropped_land_cover.tif",
