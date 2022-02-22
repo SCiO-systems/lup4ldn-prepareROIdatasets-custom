@@ -239,9 +239,11 @@ def lambda_handler(event, context):
             
     try:
         land_degradation_tif = gdal.Open(save_land_degradation_file)
-        land_degradation_array = land_degradation_tif.ReadAsArray()
         x_ref = land_degradation_tif.RasterXSize
         y_ref = land_degradation_tif.RasterYSize
+        
+        land_degradation_array = land_degradation_tif.ReadAsArray()
+        ld_array = ma.array(land_degradation_array,mask=land_degradation_array==-32768,fill_value=-32768)
     except Exception as e:
         print("if ''NoneType' object has no attribute', probably the file path is wrong")
         return {
@@ -249,7 +251,26 @@ def lambda_handler(event, context):
             "body": e
         }
             
-    
+    unique, counts = np.unique(ld_array, return_counts=True)
+    try:
+        improved_pixels = counts[np.where(unique==1)]
+        if improved_pixels.size == 0:
+            improved_pixels = 0
+    except Exception as e:
+        print(e)
+        print("Setting number of improved pixels to 0")
+        improved_pixels = 0
+      
+    try:
+        degraded_pixels = counts[np.where(unique==-1)]
+        if degraded_pixels.size == 0:
+            degraded_pixels = 0
+    except Exception as e:
+        print(e)
+        print("Setting number of degraded pixels to 0")
+        degraded_pixels = 0  
+
+    initial_roi_ld = int(9*(improved_pixels - degraded_pixels))
     
     ## land use
     if json_file["land_use_map"]["custom_map_url"]!="n/a":
