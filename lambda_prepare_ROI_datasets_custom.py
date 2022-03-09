@@ -324,7 +324,7 @@ def lambda_handler(event, context):
     else:
         unique, counts = np.unique(land_cover_array, return_counts = True)
     
-    lc_hectares = dict(zip([str(x) for x in unique], 9 * [int(x) for x in counts]))
+    lc_hectares = dict(zip([str(x) for x in unique],  [9*int(x) for x in counts]))
     
     
     ## land suitability
@@ -441,11 +441,11 @@ def lambda_handler(event, context):
     #upload files
     file_to_upload = os.listdir(path_to_tmp)
     
-    s3_lambda_path = "https://lup4ldn-lambdas.s3.eu-central-1.amazonaws.com/"    
+    s3_lambda_path = "https://lup4ldn-prod.s3.us-east-2.amazonaws.com/"    
     
     for file in file_to_upload:
         path_to_file_for_upload = path_to_tmp + file
-        target_bucket = "lup4ldn-lambdas"
+        target_bucket = "lup4ldn-prod"
     
         object_name = project_id +  "/" + file
         
@@ -466,7 +466,8 @@ def lambda_handler(event, context):
         "land_degradation" : s3_lambda_path + project_id + "/cropped_land_degradation.tif",
         "suitability" : s3_lambda_path + project_id + "/cropped_suitability.tif",
         "future_ld" : s3_lambda_path + project_id + "/cropped_future_ld.tif",
-        "land_cover_hectares_per_class" : lc_hectares
+        "land_cover_hectares_per_class" : lc_hectares,
+        "initial_roi_ld" : initial_roi_ld
     }
 
     return {
