@@ -45,7 +45,7 @@ def lambda_handler(event, context):
     path_to_land_suitability = s3_file_path + "global_land_suitability_map.tif"
     path_to_fire_freq = s3_file_path + "global_fire_freq_map.tif"
     
-    s3_lambda_path = "https://lup4ldn-staging.s3.us-east-2.amazonaws.com/"
+    s3_lambda_path = "https://lup4ldn-prod.s3.us-east-2.amazonaws.com/"
     
     def create_vsis3_url(url):
         part1 = url.split(".s3.")[0]
@@ -56,20 +56,16 @@ def lambda_handler(event, context):
     def get_bucket_from_URL(url):
         part1 = url.split(".s3.")[0]
         part2 = part1.split("https://")[1]
-        # vsis3_url = (part1+part2).replace("https:/","/vsis3" )
         return part2
     
     def get_object_from_URL(url):
         part2 = url.split(".amazonaws.com/")[1]
-        # vsis3_url = (part1+part2).replace("https:/","/vsis3" )
         return part2
     
     def check_aws_s3_empty_file(url):
         metadata = s3.head_object(Bucket=get_bucket_from_URL(url),Key = get_object_from_URL(url))
         return int(metadata["ContentLength"])<=0
 
-
-    #-----------------------------------------------------------------
     ## land cover
     save_land_cover_file = path_to_tmp + "cropped_land_cover.tif"
     
@@ -111,11 +107,11 @@ def lambda_handler(event, context):
     
     gdal_warp_kwargs_target_area["height"] = y_ref
     gdal_warp_kwargs_target_area["width"] = x_ref
+    
 
+    ## map the 22-classes lc to the 7-classes lc
     
-    #-----------------------------------------------------------------
-    ## map the 22-classes lc to the 7-classes lc    
-    
+    # Functions
     def save_arrays_to_tif(output_tif_path, array_to_save, old_raster_used_for_projection):
         
     # output_tif_path : path to output file including its title in string format.
@@ -193,8 +189,8 @@ def lambda_handler(event, context):
         
     save_arrays_to_tif(save_land_cover_file,land_cover_array,land_cover_tif)
     
-    #-----------------------------------------------------------------
-    ##crop land degradation
+    
+    ##crop land degradation (SDG)
     if json_file["land_degradation_map"]["custom_map_url"]!="n/a":
         #check if file ends with .tif extension
         if not json_file["land_degradation_map"]["custom_map_url"].endswith(".tif"):
@@ -256,15 +252,14 @@ def lambda_handler(event, context):
     initial_roi_ld = int(9*(improved_pixels - degraded_pixels))
     
 
-    #-----------------------------------------------------------------
     ## fire freq
     save_fire_freq_file = path_to_tmp + "cropped_fire_freq.tif"
     
     try:
         gdal.Warp(save_fire_freq_file,path_to_fire_freq,**gdal_warp_kwargs_target_area)
     except Exception as e:
+        print(e)
         print("if 'returned NULL without setting an error', probably at least one of the file paths is wrong")
-        raise(e)
         
     #must use gdal.Open in order to fill the file created from gdal.Warp, else the file remaines full of nodata
     try:
@@ -282,7 +277,6 @@ def lambda_handler(event, context):
         raise(e)
     
     
-    #-----------------------------------------------------------------
     ## land use
     if json_file["land_use_map"]["custom_map_url"]!="n/a":
         #check if file ends with .tif extension
@@ -326,6 +320,8 @@ def lambda_handler(event, context):
         }
         
     
+
+    
     if custom_land_suitability:
         land_use_array = land_use_tif.ReadAsArray()
         land_use_array = np.where(land_use_array<=0, -32768,land_use_array)
@@ -333,14 +329,12 @@ def lambda_handler(event, context):
         if -32768 in unique:
             unique = unique[1:]
             counts = counts[1:]
-
     else:
         unique, counts = np.unique(land_cover_array, return_counts = True)
     
     lc_hectares = dict(zip([str(x) for x in unique],  [9*int(x) for x in counts]))
     
-
-    #-----------------------------------------------------------------    
+    
     ## land suitability
     if custom_land_suitability:
         save_suitability_file = path_to_tmp + "cropped_suitability.tif"
@@ -423,8 +417,9 @@ def lambda_handler(event, context):
             }
     
 
-    #-----------------------------------------------------------------
     # future land degradation map
+    
+    
     #WATCH OUT FOR NEGATIVE OVERFLOW IF -1 FROM LAND DEGRADATION IS ADDED TO -32768 NO DATA OF SUITABILITY
     future_ld_map = 10*land_suitability_array + land_degradation_array
     future_ld_map = np.where(future_ld_map<-1,-32768,future_ld_map )
@@ -440,14 +435,14 @@ def lambda_handler(event, context):
     
     save_arrays_to_tif(save_future_ld_map_file,future_ld_map,land_cover_tif)
             
-
-    #-----------------------------------------------------------------
+        
     #upload files
     file_to_upload = os.listdir(path_to_tmp)
     
+    
     for file in file_to_upload:
         path_to_file_for_upload = path_to_tmp + file
-        target_bucket = "lup4ldn-staging"
+        target_bucket = "lup4ldn-prod"
     
         object_name = project_id +  "/" + file
         
