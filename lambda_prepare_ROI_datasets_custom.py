@@ -8,6 +8,7 @@ import json
 import requests
 import logging
 
+# import sys
 
 s3 = boto3.client('s3')
 
@@ -34,8 +35,13 @@ def lambda_handler(event, context):
         }
     
     
+    #for local
+    # path_to_tmp = "/home/christos/Desktop/SCiO_Projects/lup4ldn/data/cropped_files/"
     #for aws
     path_to_tmp = "/tmp/"
+    
+    # s3_file_path = '/vsis3/lup4ldn-dataset' + "/" + country_iso + "/"
+    # s3_file_path = "https://lup4ldn-default-global-datasets.s3.eu-central-1.amazonaws.com/"
     s3_file_path = '/vsis3/lup4ldn-default-global-datasets/'
     
     
@@ -56,10 +62,12 @@ def lambda_handler(event, context):
     def get_bucket_from_URL(url):
         part1 = url.split(".s3.")[0]
         part2 = part1.split("https://")[1]
+        # vsis3_url = (part1+part2).replace("https:/","/vsis3" )
         return part2
     
     def get_object_from_URL(url):
         part2 = url.split(".amazonaws.com/")[1]
+        # vsis3_url = (part1+part2).replace("https:/","/vsis3" )
         return part2
     
     def check_aws_s3_empty_file(url):
@@ -67,6 +75,7 @@ def lambda_handler(event, context):
         return int(metadata["ContentLength"])<=0
 
     ## land cover
+    #read the first year
     save_land_cover_file = path_to_tmp + "cropped_land_cover.tif"
     
     gdal_warp_kwargs_target_area = {
@@ -108,6 +117,25 @@ def lambda_handler(event, context):
     gdal_warp_kwargs_target_area["height"] = y_ref
     gdal_warp_kwargs_target_area["width"] = x_ref
     
+    # # read and concatenate the rest years, IF we want older years as well
+    # for i in range(2019,2021):
+    #     try:
+    #         gdal.Warp(save_land_cover_file,path_to_land_cover_folder + "global_land_cover_map_" + str(i) + ".tif" ,**gdal_warp_kwargs_target_area)
+    #     except Exception as e:
+    #         print(e)
+    #         print(i)
+    #         print("if 'returned NULL without setting an error', probably at least one of the file paths is wrong")
+    
+    #     #must use gdal.Open in order to fill the file created from gdal.Warp, else the file remaines full of nodata
+    #     try:
+    #         temp_array = gdal.Open(save_land_cover_file).ReadAsArray()
+    #     except Exception as e:
+    #         print(e)
+    #         print("if ''NoneType' object has no attribute', probably the file path is wrong")
+        
+    #     temp_array = np.expand_dims(temp_array,axis=0)
+    #     land_cover_array = np.concatenate((land_cover_array, temp_array), axis=0)
+    
 
     ## map the 22-classes lc to the 7-classes lc
     
@@ -137,6 +165,7 @@ def lambda_handler(event, context):
             DataSet.GetRasterBand(i).WriteArray(image)
             DataSet.GetRasterBand(i).SetNoDataValue(ndval)
         DataSet = None
+        # print(output_tif_path, " has been saved")
         return
     
     def map_land_cover_to_trendsearth_labels(array,labels_dict):
@@ -251,7 +280,6 @@ def lambda_handler(event, context):
 
     initial_roi_ld = int(9*(improved_pixels - degraded_pixels))
     
-
     ## fire freq
     save_fire_freq_file = path_to_tmp + "cropped_fire_freq.tif"
     
@@ -329,6 +357,12 @@ def lambda_handler(event, context):
         if -32768 in unique:
             unique = unique[1:]
             counts = counts[1:]
+    #     print(unique)
+    #     print(counts)
+    #     return {
+    #     "statusCode": 700,
+    #     "body": custom_land_suitability
+    # }
     else:
         unique, counts = np.unique(land_cover_array, return_counts = True)
     
@@ -420,17 +454,27 @@ def lambda_handler(event, context):
     # future land degradation map
     
     
-    #WATCH OUT FOR NEGATIVE OVERFLOW IF -1 FROM LAND DEGRADATION IS ADDED TO -32768 NO DATA OF SUITABILITY
+    #!!!!!!!!!!!WATCH OUT FOR NEGATIVE OVERFLOW IF -1 FROM LAND DEGRADATION IS ADDED TO -32768 NO DATA OF SUITABILITY!!!!!!!!!!!!
     future_ld_map = 10*land_suitability_array + land_degradation_array
+    
     future_ld_map = np.where(future_ld_map<-1,-32768,future_ld_map )
+
     future_ld_map = np.where(future_ld_map==-1,5,future_ld_map )
+    
     future_ld_map = np.where(future_ld_map==0,2,future_ld_map )
+    
     future_ld_map = np.where(future_ld_map==1,1,future_ld_map )
+
     future_ld_map = np.where(np.logical_or(future_ld_map==10,future_ld_map==11),1,future_ld_map )
+
     future_ld_map = np.where(np.logical_or(future_ld_map==20,future_ld_map==21),2,future_ld_map )
+
     future_ld_map = np.where(np.logical_or(future_ld_map==30,future_ld_map==31),3,future_ld_map )
+
     future_ld_map = np.where(future_ld_map==9,4,future_ld_map )
+
     future_ld_map = np.where(np.logical_or(future_ld_map==19,future_ld_map==29),5,future_ld_map)
+    
     save_future_ld_map_file = path_to_tmp + "cropped_future_ld.tif"
     
     save_arrays_to_tif(save_future_ld_map_file,future_ld_map,land_cover_tif)
@@ -449,6 +493,7 @@ def lambda_handler(event, context):
         # Upload the file
         try:
             response = s3.upload_file(path_to_file_for_upload, target_bucket, object_name)
+    #         print("Uploaded file: " + file)
         except ClientError as e:
             logging.error(e)
             return {
